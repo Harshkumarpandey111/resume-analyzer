@@ -1,0 +1,14 @@
+# Dependencies
+backend/node_modules
+frontend/node_modules
+
+# Environment files - NEVER upload these
+backend/.env
+frontend/.env
+
+# Build files
+frontend/build
+
+# OS files
+.DS_Store
+Thumbs.db
