@@ -1,50 +1,46 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
-
-// ─── AI Skill Extractor ───────────────────────────────
+// ─── Gemini AI Extractor ──────────────────────────────
 async function extractSkillsAI(resumeText) {
   try {
-    const message = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 1024,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a professional resume skill extractor.
+    const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model  = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const prompt = `You are a professional resume skill extractor.
 
 Extract ONLY the technical skills explicitly mentioned in this resume.
+
 Rules:
-- Only extract skills that are CLEARLY mentioned
-- Do NOT infer or guess skills
-- Do NOT add skills from certificates unless they are actual skills
-- Include: programming languages, frameworks, libraries, tools, databases, cloud platforms, concepts
-- Exclude: soft skills, university names, company names, job titles
-- Return ONLY a JSON array of skill strings, nothing else
-- Example: ["React", "Node.js", "MongoDB", "Docker"]
+- Only extract skills CLEARLY mentioned in the resume
+- Do NOT infer or guess skills not written
+- Do NOT add skills from certificate names unless they are actual skills
+- Include: programming languages, frameworks, libraries, tools, databases, platforms, concepts
+- Exclude: soft skills, university names, company names, job titles, city names
+- Return ONLY a valid JSON array of strings, nothing else
+- Example output: ["React", "Node.js", "MongoDB", "Docker", "JWT"]
 
 Resume text:
-${resumeText}`
-        }
-      ]
-    });
+${resumeText}`;
 
-    const responseText = message.content[0].text.trim();
+    const result   = await model.generateContent(prompt);
+    const response = await result.response;
+    const text     = response.text().trim();
 
-    // Parse JSON response
-    const jsonMatch = responseText.match(/\[.*\]/s);
+    console.log('🤖 Gemini raw response:', text.substring(0, 200));
+
+    // Extract JSON array from response
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const skills = JSON.parse(jsonMatch[0]);
-      console.log('🤖 AI extracted skills:', skills);
+      console.log('✅ AI Skills extracted:', skills);
       return skills;
     }
 
-    return [];
+    console.log('⚠️ Could not parse AI response, using regex fallback');
+    return extractSkillsRegex(resumeText);
+
   } catch (err) {
-    console.error('❌ AI extraction failed:', err.message);
-    // Fallback to regex if AI fails
+    console.error('❌ Gemini AI failed:', err.message);
     return extractSkillsRegex(resumeText);
   }
 }
@@ -89,7 +85,7 @@ const ALIASES = {
 function extractSkillsRegex(text) {
   if (!text) return [];
   const normalizedText = text.toLowerCase();
-  const foundSkills = new Set();
+  const foundSkills    = new Set();
 
   Object.entries(ALIASES).forEach(([alias, canonical]) => {
     if (normalizedText.includes(alias.toLowerCase())) {
@@ -112,15 +108,15 @@ function extractSkillsRegex(text) {
 }
 
 // ─── Main Export ──────────────────────────────────────
-// Use AI if API key exists, else use regex
 async function extractSkills(text) {
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (process.env.GEMINI_API_KEY) {
     return await extractSkillsAI(text);
   }
+  console.log('⚠️ No AI key found, using regex');
   return extractSkillsRegex(text);
 }
 
-// ─── Score Calculator (unchanged) ────────────────────
+// ─── Score Calculator ─────────────────────────────────
 function calculateMatchScore(resumeSkills, jobSkills) {
   if (!jobSkills || jobSkills.length === 0) {
     return { score: 0, matched: [], missingSkills: [] };
