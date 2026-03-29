@@ -97,7 +97,7 @@ router.post('/upload', auth, upload.single('resume'), async (req, res) => {
     }
 
     // ── Extract Skills ────────────────────────────────
-    const extractedSkills = extractSkills(rawText);
+    const extractedSkills = await extractSkills(rawText);
     console.log('🎯 Skills found:', extractedSkills);
 
     // ── Match against Jobs ────────────────────────────
